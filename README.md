@@ -19,4 +19,4 @@ python run_fqe_cql.py --config=config.py:CQL
 ```
 - To run FQE algorithm for the SKNN model you can follow the notebook `sknn/ml1_sknn.ipynb`.
 
-In these scripts you should change the data loading procedure. Also, if you run code on a Zvuk dataset with large action space, then you can switch the parameter `use_action_emb` and set the parameter `action_dim` in according to the dimension of the item embeddings.
+In these scripts you should change the data loading paths. Also, if you run code on a Zvuk dataset with large action space, you can change the parameter `use_action_emb` and set the parameter `action_dim` in according to the dimension of the item embeddings.
