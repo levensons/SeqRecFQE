@@ -262,7 +262,7 @@ class FQE:
                 
                 cur_it += 1
 
-            val_probs = [torch.softmax(self.pi_e.score(state_seq.to(self.device)), 1).squeeze(0).detach().cpu() for state_seq in val_states_seq]
+            val_probs = [torch.softmax(self.pi_e.score_with_state(state_seq.to(self.device))[0].unsqueeze(0), 1).squeeze(0).detach().cpu() for state_seq in val_states_seq]
             val_actions = [np.random.choice(np.arange(self.n_actions), p=prob.numpy()) for prob in val_probs]
             val_preds = self.predict(torch.stack(val_states, dim=0).to(self.device),
                                      torch.tensor(val_actions, device=self.device, dtype=torch.long).unsqueeze(-1)).detach()

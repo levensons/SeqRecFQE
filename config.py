@@ -34,6 +34,13 @@ def get_config(alg_type):
     
 
     config_e = {
+        "DT4REC": config_dict.ConfigDict(
+            {
+                "gen_model": "load_model",
+                "chkpt_path": "./models/first_zvuk.pt"
+            }
+        ),
+        
         "SASRec0": config_dict.ConfigDict(
             {
                 "gen_model": "prepare_sasrec_model",
