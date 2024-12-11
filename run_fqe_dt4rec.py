@@ -114,7 +114,7 @@ def main(_):
     model_e = load_model(args.config_e.chkpt_path).to(device)
 
     n_actions = model_e.state_repr.item_embeddings.num_embeddings
-    model_e.item_num = n_actions
+    model_e.item_num = n_actions - 1
     model_e.pad_token = n_actions - 1
     all_actions = np.arange(n_actions, dtype=np.int32)
 

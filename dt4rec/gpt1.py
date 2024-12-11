@@ -6,8 +6,18 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
 from dt4rec_utils import SeqsDataset, make_rsa
+# from torch.utils.data import default_collate
 
 logger = logging.getLogger(__name__)
+
+def default_collate(batch):
+    output = {key: [] for key in batch[0].keys()}
+    for elem in batch:
+        for key, value in elem.items():
+            output[key].append(value)
+    for key, value in output.items():
+        output[key] = torch.stack(value)
+    return output
 
 def batch_to_device(batch, device):
     new_batch = {key: value.to(device) for key, value in batch.items()}
@@ -432,43 +442,65 @@ class GPT(nn.Module):
 
         return logits
     
+#     def score_batch(self, seqs):
+#         self.eval()
+#         device = seqs.device
+#         item_num = self.config.vocab_size
+#         seqs_dataset = SeqsDataset(seqs.cpu(), item_num)
+#         seqs_dataloader = DataLoader(seqs_dataset, batch_size=128, num_workers=4)
+
+#         outputs = []
+#         # for batch in tqdm(seqs_dataloader, total=len(seqs_dataloader)):
+#         for batch in seqs_dataloader:
+#             batch = batch_to_device(batch, device)
+#             outputs.append(self.forward(**batch).detach()[:, -1])
+
+#         return torch.cat(outputs, dim=0)
+    
+#     def state_batch(self, seqs, use_tqdm=False):
+#         self.eval()
+#         device = seqs.device
+#         item_num = self.config.vocab_size
+#         seqs_dataset = SeqsDataset(seqs.cpu(), item_num)
+#         seqs_dataloader = DataLoader(seqs_dataset, batch_size=128, num_workers=4)
+
+#         outputs = []
+#         iterator = (
+#             tqdm(seqs_dataloader, total=len(seqs_dataloader))
+#             if use_tqdm
+#             else seqs_dataloader
+#         )
+#         with torch.no_grad():
+#             for batch in iterator:
+#                 batch = batch_to_device(batch, device)
+
+#                 hidden_state = self.calc_hidden_state(**batch).detach()[:, -1]
+#                 outputs.append(hidden_state)
+#                 del batch, hidden_state
+
+#         return torch.cat(outputs, dim=0)
+
     def score_batch(self, seqs):
         self.eval()
         device = seqs.device
         item_num = self.config.vocab_size
-        seqs_dataset = SeqsDataset(seqs.cpu(), item_num)
-        seqs_dataloader = DataLoader(seqs_dataset, batch_size=128, num_workers=4)
+        batch = default_collate([make_rsa(seq, 3, item_num, True) for seq in seqs])
+        batch = batch_to_device(batch, device)
+        with torch.no_grad():
+            logits = self.forward(**batch).detach()[:, -1]
+        return logits
 
-        outputs = []
-        # for batch in tqdm(seqs_dataloader, total=len(seqs_dataloader)):
-        for batch in seqs_dataloader:
-            batch = batch_to_device(batch, device)
-            outputs.append(self.forward(**batch).detach()[:, -1])
 
-        return torch.cat(outputs, dim=0)
-    
-    def state_batch(self, seqs, use_tqdm=False):
+    def state_batch(self, seqs):
         self.eval()
         device = seqs.device
         item_num = self.config.vocab_size
-        seqs_dataset = SeqsDataset(seqs.cpu(), item_num)
-        seqs_dataloader = DataLoader(seqs_dataset, batch_size=128, num_workers=4)
+        batch = default_collate([make_rsa(seq, 3, item_num, True) for seq in seqs])
+        batch = batch_to_device(batch, device)
 
-        outputs = []
-        iterator = (
-            tqdm(seqs_dataloader, total=len(seqs_dataloader))
-            if use_tqdm
-            else seqs_dataloader
-        )
         with torch.no_grad():
-            for batch in iterator:
-                batch = batch_to_device(batch, device)
-
-                hidden_state = self.calc_hidden_state(**batch).detach()[:, -1]
-                outputs.append(hidden_state)
-                del batch, hidden_state
-
-        return torch.cat(outputs, dim=0)
+            hidden_state = self.calc_hidden_state(**batch).detach()[:, -1]
+        return hidden_state
     
     def score_with_state(self, seq):
         self.eval()
