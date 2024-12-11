@@ -1,5 +1,18 @@
 # SeqRecFQE
 
+## Code structure
+
+- `dt4rec/`: folder with files for model training(`train.py`). Also, it contains model instance(`gpt1.py`) which is used in FQE;
+- `rl_ope/`: folder with code for the FQE preprocessing(`utils.py`) and training(`fqe.py`);
+- `src/`: folder with the instance of CQL model(`cql_dqn.py`) and replay buffer(`rec_replay_buffer.py`);
+- `ssknn`: folder with its own realization of FQE(`rl_ope/`) and contains jupyter notebook for the model training and evaluation(`ml1_sknn.ipynb`);
+- `config.py`: file with the configuration for various evaluated algorithms;
+- `data.py`, `eval_utils.py`, `metrics.py`, `model.py`, `sampler.py`, `preprocessing.py`, `train.py`, `utils.py`: files to train and evaluate SasRec model;
+- `cql_utils.py`: file which contains code to create CQL+SasRec model;
+- `train_cql.ipynb`, `train_sasrec.ipynb`: notebooks which run training for CQL+SasRec and SasRec models;
+- `run_fqe.py`, `run_fqe_cql.py`, `run_fqe_dt4rec.py`: script files which run FQE for the corresponding model.
+
+
 ## Train models
 - To train SasRec model you can follow the `train_sasrec.ipynb` file;
 - To train CQL model you can follow the `train_cql.ipynb` file;
