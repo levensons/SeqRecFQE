@@ -12,6 +12,20 @@ import wandb
 import logging
 
 class QNetwork(nn.Module):
+    """
+    A neural network model for estimating Q-values in reinforcement learning.
+
+    Args:
+        state_dim (int): Dimension of the state space.
+        action_dim (int): Dimension of the action space.
+        gamma (float): Discount factor for future rewards.
+        use_action_emb (bool, optional): Whether to use action embeddings. Defaults to False.
+        hidden_size (int, optional): Number of hidden units in each layer. Defaults to 128.
+
+    Methods:
+        forward(state, action=None):
+            Computes Q-values for given state and action inputs.
+    """
     def __init__(self, state_dim, action_dim, gamma, use_action_emb=False, hidden_size=128):
         super().__init__()
 
@@ -34,7 +48,16 @@ class QNetwork(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, state, action=None):
-        # q_vals = self.model(x)
+        """
+        Forward pass through the Q-network.
+
+        Args:
+            state (torch.Tensor): State tensor.
+            action (torch.Tensor, optional): Action tensor. Required if `use_action_emb` is True.
+
+        Returns:
+            torch.Tensor: Q-values for the given inputs.
+        """
         if self.use_action_emb:
             x = torch.cat([state, action], dim=-1)
         else:
@@ -48,6 +71,18 @@ class QNetwork(nn.Module):
 
 
 class RLDatasetOnline(Dataset):
+    """
+    A PyTorch Dataset for online reinforcement learning data.
+
+    Args:
+        config (dict): Dictionary containing dataset configurations and data.
+
+    Methods:
+        __len__():
+            Returns the total number of samples in the dataset.
+        __getitem__(idx):
+            Retrieves a sample by index.
+    """
     def __init__(self, config):
         self.states = config["states"]
 
@@ -76,9 +111,24 @@ class RLDatasetOnline(Dataset):
             self.all_actions = config["all_actions"]
 
     def __len__(self):
+        """
+        Returns the total number of sampled sequences in the dataset.
+
+        Returns:
+            int: Number of samples.
+        """
         return len(self.sampled_seqs)
 
     def __getitem__(self, idx):
+        """
+        Retrieves a data sample by index.
+
+        Args:
+            idx (int): Index of the sample.
+
+        Returns:
+            tuple: A tuple containing reward, state, next state, next sampled sequence, action, and negative actions.
+        """
         logger = logging.getLogger("fqe")
 
         sampled_seq = torch.tensor(self.sampled_seqs[idx], dtype=torch.long)
@@ -95,7 +145,18 @@ class RLDatasetOnline(Dataset):
 
         return reward, state, next_state, next_sampled_seq, action, actions_neg
 
+
 class RLDatasetOnlineVal(RLDatasetOnline):
+    """
+    A validation version of the RLDatasetOnline.
+
+    Args:
+        config (dict): Dictionary containing dataset configurations and data.
+
+    Methods:
+        get_seq(idx):
+            Retrieves a state sequence by index.
+    """
     def __init__(self, config):
         super().__init__(config)
         
@@ -103,15 +164,39 @@ class RLDatasetOnlineVal(RLDatasetOnline):
         self.states = config["states"]
 
     def __len__(self):
+        """
+        Returns the total number of full sequences in the dataset.
+
+        Returns:
+            int: Number of full sequences.
+        """
         return len(self.full_sequences)
 
     def get_seq(self, idx):
+        """
+        Retrieves a state sequence by index.
+
+        Args:
+            idx (int): Index of the sequence.
+
+        Returns:
+            torch.Tensor: State sequence tensor.
+        """
         state = torch.from_numpy(self.seqs[idx])
     
         return state
 
 
 def collate_fn(batch):
+    """
+    A custom collate function for DataLoader.
+
+    Args:
+        batch (list): A list of samples from the dataset.
+
+    Returns:
+        tuple: Batched data tensors for rewards, states, next states, next sampled sequences, actions, and negative actions.
+    """
     batch_rewards,\
     batch_states,\
     batch_next_states,\
@@ -127,6 +212,38 @@ def collate_fn(batch):
     
 
 class FQE:
+    """
+    Fitted Q Evaluation (FQE) class for reinforcement learning policy evaluation.
+
+    Args:
+        dataset (Dataset): Training dataset.
+        val_dataset (Dataset): Validation dataset.
+        pi_e (object): Policy being evaluated.
+        item_emb (torch.Tensor): Embedding matrix for items.
+        optim_conf (dict): Optimizer configuration.
+        n_epochs (int): Number of training epochs.
+        state_dim (int): Dimension of state representation.
+        n_actions (int): Total number of actions.
+        action_dim (int): Dimension of action embeddings.
+        hidden_size (int): Number of hidden units in each layer.
+        gamma (float): Discount factor for future rewards.
+        tau (float): Soft update rate for target network.
+        n_sampled_actions (int): Number of sampled actions during training.
+        use_action_emb (bool): Whether to use action embeddings.
+        device (torch.device): Device to use for computations.
+
+    Methods:
+        train(batch_size, plot_info=True):
+            Trains the Q-network using the dataset.
+        predict(states, actions):
+            Predicts Q-values for given states and actions.
+        plot_info(loss_history, values):
+            Plots the training loss and validation values.
+        copy_over_to(source, target):
+            Copies parameters from one network to another.
+        soft_update(source, target, tau):
+            Performs a soft update of target network parameters.
+    """
     def __init__(self,
                  dataset,
                  val_dataset,
@@ -168,25 +285,42 @@ class FQE:
 
     @staticmethod
     def copy_over_to(source, target):
+        """
+        Copies parameters from the source network to the target network.
+
+        Args:
+            source (torch.nn.Module): Source network.
+            target (torch.nn.Module): Target network.
+        """
         target.load_state_dict(source.state_dict())
 
     @staticmethod
     def soft_update(source, target, tau):
         """
-        Perform a soft update of the target network parameters.
+        Performs a soft update of the target network parameters.
 
         Args:
-            target_network (torch.nn.Module): The target network.
-            current_network (torch.nn.Module): The current network.
-            tau (float): The soft update rate (0 < tau <= 1).
+            source (torch.nn.Module): Source network.
+            target (torch.nn.Module): Target network.
+            tau (float): Soft update rate (0 < tau <= 1).
         """
-        with torch.no_grad():  # No gradient computation for this operation
+        with torch.no_grad():
             for target_param, source_param in zip(target.parameters(), source.parameters()):
                 target_param.data.copy_(
                     tau * source_param.data + (1.0 - tau) * target_param.data
                 )
 
     def train(self, batch_size, plot_info=True):
+        """
+        Trains the Q-network using the provided dataset.
+
+        Args:
+            batch_size (int): Batch size for training.
+            plot_info (bool, optional): Whether to plot training info. Defaults to True.
+
+        Returns:
+            list: Validation values at each epoch.
+        """
         logger = logging.getLogger("fqe")
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.q.parameters()), **self.optim_conf)
         q_prev = QNetwork(self.state_dim,
@@ -283,10 +417,19 @@ class FQE:
 
             logger.info(f"Finished Epoch {epoch}.")
 
-
         return values
 
     def predict(self, states, actions):
+        """
+        Predicts Q-values for the given states and actions.
+
+        Args:
+            states (torch.Tensor): Input states.
+            actions (torch.Tensor): Input actions.
+
+        Returns:
+            torch.Tensor: Predicted Q-values.
+        """
         if self.use_action_emb:
             n_actions = actions.shape[1]
             emb_actions = self.item_emb[actions].detach()
@@ -297,6 +440,13 @@ class FQE:
         return q_vals
 
     def plot_info(self, loss_history, values):
+        """
+        Plots the training loss and validation values.
+
+        Args:
+            loss_history (list): List of training losses.
+            values (list): List of validation values.
+        """
         fig = plt.figure(figsize=(20, 10))
 
         fig.add_subplot(1, 2, 1)
@@ -310,17 +460,3 @@ class FQE:
 
         plt.savefig("plot.png")
         plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-

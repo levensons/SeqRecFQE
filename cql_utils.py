@@ -8,10 +8,39 @@ from matplotlib import pyplot as plt
 from time import time
 from clearml import Task, Logger
 
-
 def prepare_cql_model(config, sasrec_model, data_description, optimizers=None):
-    state_dim = data_description['n_items']+2
-    action_dim = data_description['n_items']+2
+    """
+    Prepares a Conservative Q-Learning (CQL) model using the provided configuration and data.
+
+    Args:
+        config (object): Configuration object containing hyperparameters and settings.
+        sasrec_model (torch.nn.Module): A pre-trained SASRec model used as the policy body.
+        data_description (dict): Dictionary describing the dataset, including the number of items (`n_items`).
+        optimizers (dict, optional): Dictionary of optimizers for the SASRec model. Defaults to None.
+
+    Returns:
+        DQNCQL: An instance of the Conservative Q-Learning (CQL) trainer.
+
+    Notes:
+        - The method initializes the Q-functions (q_1 and q_2), their optimizers, and other training components.
+        - Supports automatic entropy tuning and configurable CQL hyperparameters.
+        - Saves the configuration to a specified checkpoint path if provided.
+
+    Example:
+        config = {
+            'device': 'cuda',
+            'seed': 42,
+            'discount': 0.99,
+            'soft_target_update_rate': 0.005,
+            'qf_lr': 3e-4,
+            'cql_alpha': 1.0,
+            # Additional configuration parameters...
+        }
+
+        trainer = prepare_cql_model(config, sasrec_model, data_description)
+    """
+    state_dim = data_description['n_items'] + 2
+    action_dim = data_description['n_items'] + 2
 
     max_action = float(1)
 
@@ -24,7 +53,6 @@ def prepare_cql_model(config, sasrec_model, data_description, optimizers=None):
     # Set seeds
     seed = config.seed
     set_seed(seed)
-
 
     q_1 = FullyConnectedQFunction(
         128,

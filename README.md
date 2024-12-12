@@ -22,6 +22,8 @@ python train.py <name_of_experiment> movielens -tbs=64
 ```
 - To train SKNN model you can follow the `sknn/ml1_sknn.ipynb` file.
 
+**Important**: if you run code on MovieLens-1m then you should use `downvote_seen_item` function on validation. In the case of Zvuk dataset you shouldn't because within one user tracks can be repeated.
+
 ## Run FQE
 To prepare this code you should write paths in `config.py` for the model(evaluated) weights.
 

@@ -15,10 +15,20 @@ import logging
 import random
 
 from data import get_dataset, data_to_sequences, SequentialDataset
-# os.environ['CUDA_VISIBLE_DEVICES'] = '4'
 
 
 def process_subseqs(subseqs_h, model_D_sasrec, device):
+    """
+    Processes subsequences to extract states, next states, actions, and ratings.
+
+    Args:
+        subseqs_h (list): List of subsequences with action, sequence, and rating.
+        model_D_sasrec (object): Model object for generating state representations.
+        device (torch.device): Device to perform computations on.
+
+    Returns:
+        tuple: Extracted states, next states, actions, ratings, and scores.
+    """
     states = []
     next_states = []
     scores = []
@@ -33,25 +43,38 @@ def process_subseqs(subseqs_h, model_D_sasrec, device):
             next_subseq.append(at)
             _, next_state = model_D_sasrec.score_with_state(torch.tensor(next_subseq, device=device, dtype=torch.long))
             next_states.append(next_state.detach().cpu().numpy())
-            # scores.append(score.detach().cpu().numpy())
             actions.append(at)
             ratings.append(rating)
 
     return states, next_states, actions, ratings, scores
 
 def prepare_svd(data, data_description, rank, device):
+    """
+    Prepares Singular Value Decomposition (SVD) for the interaction matrix.
+
+    Args:
+        data (pd.DataFrame): Input data containing user-item interactions.
+        data_description (dict): Description of the dataset.
+        rank (int): Rank for SVD decomposition.
+        device (torch.device): Device to perform computations on.
+
+    Returns:
+        torch.Tensor: Item factors matrix from SVD.
+    """
     userid = data_description['users']
     itemid = data_description['items']
 
     n_users = len(data[userid].sort_values().unique())
-    n_items = data_description['n_items'] + 2 # +1 for the pad item of SasRec and +1 for &@!&%$
+    n_items = data_description['n_items'] + 2
 
     interaction_matrix = csr_matrix(
-                                        (data['rating'],
-                                        (data[userid], data[itemid]), #subtract 1 to start with [0,1,2,...]
-                                    ),
-                                    shape=(n_users, n_items),
-                                    dtype=float)
+        (
+            data['rating'],
+            (data[userid], data[itemid]),
+        ),
+        shape=(n_users, n_items),
+        dtype=float
+    )
 
     _, singular_values, vh = svds(
         interaction_matrix,
@@ -65,6 +88,21 @@ def prepare_svd(data, data_description, rank, device):
     return item_factors
 
 def extract_states_actions(data, model_D_sasrec, n, data_description, device, n_neg_samples=-1, samples_per_user=-1):
+    """
+    Extracts states, actions, and additional information from the dataset.
+
+    Args:
+        data (pd.DataFrame): Input data containing user-item interactions.
+        model_D_sasrec (object): Model for generating state representations.
+        n (int): Window size for state sequences.
+        data_description (dict): Description of the dataset.
+        device (torch.device): Device to perform computations on.
+        n_neg_samples (int, optional): Number of negative samples per action. Defaults to -1.
+        samples_per_user (int, optional): Number of samples per user. Defaults to -1.
+
+    Returns:
+        tuple: Extracted states, next states, actions, ratings, sampled sequences, negative actions, and full sequences.
+    """
     bs = 1024
     all_actions = np.arange(model_D_sasrec.item_num + 1, dtype=np.int32)
     logger = logging.getLogger("fqe")
@@ -76,10 +114,6 @@ def extract_states_actions(data, model_D_sasrec, n, data_description, device, n_
 
     logger.info("go to data_to_sequences_rating!")
     full_sequences = data_to_sequences_rating(data, data_description, -1)
-    # logger.info(full_sequences.head())
-    # full_sequences.to_csv('./mdp/full_sequences.csv')
-
-    # full_sequences = pd.read_csv("./mdp/full_sequences.csv", index_col=0, squeeze=True).rename(None).apply(eval)
 
     states_list = []
     next_states_list = []
@@ -132,8 +166,18 @@ def extract_states_actions(data, model_D_sasrec, n, data_description, device, n_
            np.concatenate(actions_neg, axis=0),\
            full_sequences
 
-
 def process_seq(seqt, model_D_sasrec, device):
+    """
+    Processes a single sequence to extract state, action, rating, and score.
+
+    Args:
+        seqt (tuple): A sequence containing action, state, and rating.
+        model_D_sasrec (object): Model for generating state representations.
+        device (torch.device): Device to perform computations on.
+
+    Returns:
+        tuple: Extracted state, action, rating, and score.
+    """
     action, seq, rating = seqt
 
     with torch.no_grad():
@@ -144,6 +188,19 @@ def process_seq(seqt, model_D_sasrec, device):
     return state, action, rating, score
 
 def extract_states_actions_val(data, model_D_sasrec, n, data_description, device):
+    """
+    Extracts validation states, actions, and related information.
+
+    Args:
+        data (pd.DataFrame): Input data containing user-item interactions.
+        model_D_sasrec (object): Model for generating state representations.
+        n (int): Window size for state sequences.
+        data_description (dict): Description of the dataset.
+        device (torch.device): Device to perform computations on.
+
+    Returns:
+        tuple: Extracted states, actions, ratings, scores, and sequences.
+    """
     states = []
     actions = []
     scores = []
