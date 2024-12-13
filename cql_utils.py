@@ -20,24 +20,6 @@ def prepare_cql_model(config, sasrec_model, data_description, optimizers=None):
 
     Returns:
         DQNCQL: An instance of the Conservative Q-Learning (CQL) trainer.
-
-    Notes:
-        - The method initializes the Q-functions (q_1 and q_2), their optimizers, and other training components.
-        - Supports automatic entropy tuning and configurable CQL hyperparameters.
-        - Saves the configuration to a specified checkpoint path if provided.
-
-    Example:
-        config = {
-            'device': 'cuda',
-            'seed': 42,
-            'discount': 0.99,
-            'soft_target_update_rate': 0.005,
-            'qf_lr': 3e-4,
-            'cql_alpha': 1.0,
-            # Additional configuration parameters...
-        }
-
-        trainer = prepare_cql_model(config, sasrec_model, data_description)
     """
     state_dim = data_description['n_items'] + 2
     action_dim = data_description['n_items'] + 2

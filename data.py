@@ -90,7 +90,7 @@ def no_sample(user_items, maxlen, pad_token):
         pad_token (int): Padding token used for sequences.
 
     Returns:
-        tuple: Sequence, positive interactions, and empty negative samples.
+        tuple: Sequence, positive interactions, and negative samples.
     """
     seq = np.full(maxlen, pad_token, dtype=np.int32)
     pos = np.full(maxlen, pad_token, dtype=np.int32)
@@ -189,12 +189,6 @@ class SequentialDataset(Dataset):
         n_neg_samples (int): Number of negative samples per sequence.
         sampling (str): Sampling method ('with_rep', 'without_rep', 'dross', 'no_sampling').
         pad_token (int): Padding token used for sequences.
-
-    Methods:
-        __len__():
-            Returns the number of users in the dataset.
-        __getitem__(idx):
-            Returns the sequences, positive, and negative samples for the given user index.
     """
     def __init__(self, user_train, usernum, itemnum, maxlen, seed, n_neg_samples=1, sampling='without_rep', pad_token=None):
         super().__init__()
@@ -258,5 +252,3 @@ class SequentialDataset(Dataset):
             raise NotImplementedError()
 
         return user, seq, pos, neg 
-
-# Additional utility functions omitted for brevity but follow a similar structure with docstrings.

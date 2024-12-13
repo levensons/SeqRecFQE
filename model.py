@@ -7,11 +7,24 @@ import torch.nn.functional as F
 
 
 def fix_torch_seed(seed):
+    """
+    Sets the seed for reproducibility in PyTorch computations.
+
+    Args:
+        seed: Random seed value.
+    """
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
 
 class PointWiseFeedForward(nn.Module):
+    """
+    Implements a pointwise feedforward network using convolutional layers.
+
+    Args:
+        hidden_units: Number of hidden units in the layers.
+        dropout_rate: Dropout rate for regularization.
+    """
     def __init__(self, hidden_units, dropout_rate):
 
         super(PointWiseFeedForward, self).__init__()
@@ -30,6 +43,14 @@ class PointWiseFeedForward(nn.Module):
 
 
 class SASRecBackBone(nn.Module):
+    """
+    The backbone implementation of the SASRec model.
+
+    Args:
+        item_num: Number of items in the dataset.
+        config: Dictionary containing model configuration parameters.
+        item_emb_svd: Pre-trained item embeddings.
+    """
     def __init__(self, item_num, config, item_emb_svd):
         super(SASRecBackBone, self).__init__()
         self.item_num = item_num
@@ -77,6 +98,9 @@ class SASRecBackBone(nn.Module):
         self.initialize()
 
     def initialize(self):
+        """
+        Initializes the model parameters using Xavier uniform initialization.
+        """
         for _, param in self.named_parameters():
             try:
                 torch.nn.init.xavier_uniform_(param.data)
@@ -84,6 +108,15 @@ class SASRecBackBone(nn.Module):
                 pass # just ignore those failed init layers
 
     def log2feats(self, log_seqs):
+        """
+        Converts input log sequences into feature representations using embedding and attention layers.
+
+        Args:
+            log_seqs: Input sequences representing user-item interactions.
+
+        Returns:
+            torch.Tensor: Transformed feature representations.
+        """
         device = log_seqs.device
         if self.item_emb_svd is None:
             seqs = self.item_emb(log_seqs)
@@ -123,6 +156,17 @@ class SASRecBackBone(nn.Module):
         return log_feats
 
     def forward(self, log_seqs, pos_seqs, neg_seqs):
+        """
+        Computes the forward pass for positive and negative samples.
+
+        Args:
+            log_seqs: Input sequences of user interactions.
+            pos_seqs: Positive samples.
+            neg_seqs: Negative samples.
+
+        Returns:
+            Tuple of processed sequences, logits for positive samples, and logits for negative samples.
+        """
         log_feats = self.log2feats(log_seqs)
 
         log_feats = log_feats.view(-1, log_feats.shape[-1])
@@ -168,6 +212,15 @@ class SASRecBackBone(nn.Module):
         return logits
     
     def score_batch(self, log_seqs):
+        """
+        Computes prediction scores for a batch of sequences.
+
+        Args:
+            log_seqs: Batch of sequences.
+
+        Returns:
+            torch.Tensor: Predicted scores for the batch.
+        """
         final_feat = self.log2feats(log_seqs)[:, -1, :]
 
         item_embs = self.item_emb_svd
@@ -181,6 +234,15 @@ class SASRecBackBone(nn.Module):
         return logits
 
     def state_batch(self, log_seqs):
+        """
+        Computes the final state representations for a batch of sequences.
+
+        Args:
+            log_seqs: Batch of sequences.
+
+        Returns:
+            torch.Tensor: Final state representations for the batch.
+        """
         return self.log2feats(log_seqs)[:, -1]
 
     def score_with_state(self, seq):
@@ -205,22 +267,16 @@ class SASRecBackBone(nn.Module):
 
         return logits, final_feat[0]
 
-    # def score_with_state(self, seq):
-    #     '''
-    #     Takes 1d sequence as input and returns prediction scores.
-    #     '''
-    #     maxlen = self.pos_emb.num_embeddings
-    #     log_seqs = torch.full([maxlen], self.pad_token, dtype=torch.int64, device=seq.device)
-    #     log_seqs[-len(seq):] = seq[-maxlen:]
-    #     log_feats = self.log2feats(log_seqs.unsqueeze(0))
-    #     final_feat = log_feats[:, -1, :] # only use last QKV classifier
-
-    #     item_embs = self.item_emb.weight
-    #     logits = item_embs.matmul(final_feat.unsqueeze(-1)).squeeze(-1)
-    #     return logits, final_feat[0]
-
 
 class SASRec(SASRecBackBone):
+    """
+    Extends the SASRecBackBone with specific forward methods for different loss functions.
+
+    Args:
+        item_num: Number of items in the dataset.
+        config: Dictionary containing model and training configuration parameters.
+        item_emb_svd: Pre-trained item embeddings.
+    """
     def __init__(self, item_num, config, item_emb_svd=None):
         super().__init__(item_num + 1, config, item_emb_svd)
 
@@ -248,6 +304,17 @@ class SASRec(SASRecBackBone):
             self.beta = alpha * (config['gbce_t'] * (1. - 1. / alpha) + 1. / alpha)
 
     def forward(self, log_seqs, pos_seqs, neg_seqs):
+        """
+        Determines the forward method based on the configured loss function.
+
+        Args:
+            log_seqs: Input sequences of user interactions.
+            pos_seqs: Positive samples.
+            neg_seqs: Negative samples.
+
+        Returns:
+            Output of the selected forward method.
+        """
         if self.fwd_type == 'rece':
             return self.rece_forward(log_seqs, pos_seqs)
 
@@ -270,6 +337,12 @@ class SASRec(SASRecBackBone):
             raise ValueError(f'Wrong fwd_type type - {self.fwd_type}')
 
     def bce_forward(self, log_seqs, pos_seqs, neg_seqs):
+        """
+        Computes the forward pass for binary cross-entropy loss.
+
+        Returns:
+            torch.Tensor: BCE loss value.
+        """
         device = log_seqs.device
         pos_seqs, pos_logits, neg_logits = super().forward(log_seqs, pos_seqs, neg_seqs)
 
@@ -291,6 +364,12 @@ class SASRec(SASRecBackBone):
         return loss
 
     def ce_forward(self, log_seqs, pos_seqs):
+        """
+        Computes the forward pass for cross-entropy loss.
+
+        Returns:
+            torch.Tensor: CE loss value.
+        """
         emb = self.log2feats(log_seqs)
 
         item_embs = self.item_emb_svd
@@ -307,6 +386,11 @@ class SASRec(SASRecBackBone):
         return loss
     
     def embedding_forward(self, log_seqs):
+        """
+        Returns the embeddings for the last timestep in the sequence.
+
+        Returns:
+            torch.Tensor: Embedding representation.
+        """
         emb = self.log2feats(log_seqs)[:, -1]
-        # emb = emb.reshape(-1, emb.shape[-1])
         return emb

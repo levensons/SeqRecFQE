@@ -23,7 +23,12 @@ import logging
 
 @hydra.main(version_base=None, config_path="configs", config_name="train")
 def main(config):
-    
+    """
+    The main entry point for training the SASRec model.
+
+    Initializes the ClearML task, sets up configurations, and prepares the dataset.
+    Builds and trains the model based on the provided configuration.
+    """
     print(OmegaConf.to_yaml(config))
     
     if hasattr(config, 'cuda_visible_devices'):
@@ -78,27 +83,32 @@ def main(config):
         build_sasrec_model(base_config, training, data_description,
                            testset_valid=testset_valid, holdout_valid=holdout_valid, device=device,
                            task=task, log=log)
-
-    ## ЭТО НАМ СЕЙЧАС НЕ НУЖНО, МЕТРИКИ НА ТЕСТЕ НЕ СЧИТАЕМ
-    # test_scores = get_test_scores(model, data_description, testset_, holdout_, device)
-    # test_scores_meta = \
-    #     reduce(lambda s, metric_name: s + f'\n{metric_name}:{test_scores[metric_name]:.3g}', test_scores.keys(), '')
-
-    # print(test_scores_meta)
-            
-    # if task:
-    #     for metric_name, metric_value in test_scores.items():
-    #         log.report_single_value(name=f'test_{metric_name}', value=round(metric_value, 4))    
-        # task.close()
         
 
 def set_worker_random_state(id):
+    """
+    Sets the random state for a worker in a DataLoader.
+
+    Ensures reproducibility by initializing the worker's dataset seed
+    with a unique value based on the worker's ID.
+    """
     dataset = torch.utils.data.get_worker_info().dataset
     dataset.seed = dataset.seed + id
     dataset.random_state = np.random.RandomState(dataset.seed)
 
 
 def prepare_sasrec_model(config, data, data_description, device, item_emb_svd=None):
+    """
+    Prepares the SASRec model, dataset sampler, and optimizer for training.
+
+    Args:
+        data: Training dataset.
+        data_description: Metadata about the dataset, such as the number of users and items.
+        item_emb_svd: Pre-trained item embeddings (optional).
+
+    Returns:
+        tuple: The SASRec model, a DataLoader for sampling, the number of batches, and the optimizer.
+    """
     logger = logging.getLogger("fqe")
     n_users = data_description['n_users']
     n_items = data_description['n_items']
@@ -133,6 +143,18 @@ def prepare_sasrec_model(config, data, data_description, device, item_emb_svd=No
 
 
 def train_sasrec_epoch(model, num_batch, l2_emb, sampler, optimizer, device):
+    """
+    Trains the SASRec model for one epoch.
+
+    Args:
+        num_batch: Number of batches to train in one epoch.
+        l2_emb: Regularization parameter for embedding layers.
+        sampler: DataLoader object for sampling training data.
+        optimizer: Optimizer for updating the model's parameters.
+
+    Returns:
+        list: List of loss values for each batch.
+    """
     model.train()
     pad_token = model.pad_token ###??????????????????
     losses = []
@@ -151,14 +173,30 @@ def train_sasrec_epoch(model, num_batch, l2_emb, sampler, optimizer, device):
 
 
 def build_sasrec_model(config, data, data_description, testset_valid, holdout_valid, device, task, log, item_emb_svd=None):
-    '''Simple MF training routine without early stopping'''
+    """
+    Builds and trains the SASRec model.
+
+    Performs training over multiple epochs with evaluation at specified intervals.
+    Includes functionality for early stopping based on validation performance.
+
+    Args:
+        data: Training dataset.
+        data_description: Metadata about the dataset.
+        testset_valid: Validation set used for intermediate evaluation.
+        holdout_valid: Holdout set for testing the model's performance.
+        task: ClearML task object for logging and monitoring.
+        log: Logger instance for reporting metrics.
+
+    Returns:
+        SASRec: The trained SASRec model.
+    """
     model, sampler, n_batches, optimizers = prepare_sasrec_model(config, data, data_description, device, item_emb_svd)
     losses = {}
     metrics = {}
     ndcg = {}
     best_ndcg = 0
     wait = 0
-    
+
     # userid = data_description['users']
     # validation_size = 5000
     # validation_users = testset_valid[userid].unique()
@@ -175,7 +213,7 @@ def build_sasrec_model(config, data, data_description, testset_valid, holdout_va
     checkpt_name = uuid.uuid4().hex
     if not os.path.exists('./checkpt'):
         os.mkdir('./checkpt')
-    
+
     checkpt_path = os.path.join('./checkpt', f'{checkpt_name}.chkpt')
 
     for epoch in tqdm(range(config['num_epochs'])):
@@ -198,7 +236,7 @@ def build_sasrec_model(config, data, data_description, testset_valid, holdout_va
             cov_ = val_metrics['cov@10']
             print(f'Epoch {epoch}, HR@10: {hr_}')
             print(f'Epoch {epoch}, Cov@10: {cov_}')
-            
+
             if task and (epoch % 5 == 0):
                 log.report_scalar("Loss", series='Val', iteration=epoch, value=np.mean(losses[epoch]))
                 log.report_scalar("NDCG", series='Val', iteration=epoch, value=ndcg_)
@@ -211,13 +249,13 @@ def build_sasrec_model(config, data, data_description, testset_valid, holdout_va
                 wait += 1
             else:
                 break
-    
+
     torch.cuda.synchronize()
     training_time_sec = time() - start_time
     full_peak_training_memory_bytes = torch.cuda.max_memory_allocated()
     peak_training_memory_bytes = torch.cuda.max_memory_allocated() - start_memory
     training_epoches = len(losses)
-    
+
     model.load_state_dict(torch.load(checkpt_path))
     # os.remove(checkpt_path)
 
@@ -225,7 +263,7 @@ def build_sasrec_model(config, data, data_description, testset_valid, holdout_va
     print('Peak training memory, mb:', round(full_peak_training_memory_bytes/ 1024. / 1024., 2))
     print('Training epoches:', training_epoches)
     print('Training time, m:', round(training_time_sec/ 60., 2))
-    
+
     if task:
         ind_max = np.argmax(list(ndcg.values())) * config['skip_epochs']
         for metric_name, metric_value in metrics[ind_max].items():

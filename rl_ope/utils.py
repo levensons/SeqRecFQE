@@ -18,17 +18,6 @@ from data import get_dataset, data_to_sequences, SequentialDataset
 
 
 def process_subseqs(subseqs_h, model_D_sasrec, device):
-    """
-    Processes subsequences to extract states, next states, actions, and ratings.
-
-    Args:
-        subseqs_h (list): List of subsequences with action, sequence, and rating.
-        model_D_sasrec (object): Model object for generating state representations.
-        device (torch.device): Device to perform computations on.
-
-    Returns:
-        tuple: Extracted states, next states, actions, ratings, and scores.
-    """
     states = []
     next_states = []
     scores = []
@@ -167,17 +156,6 @@ def extract_states_actions(data, model_D_sasrec, n, data_description, device, n_
            full_sequences
 
 def process_seq(seqt, model_D_sasrec, device):
-    """
-    Processes a single sequence to extract state, action, rating, and score.
-
-    Args:
-        seqt (tuple): A sequence containing action, state, and rating.
-        model_D_sasrec (object): Model for generating state representations.
-        device (torch.device): Device to perform computations on.
-
-    Returns:
-        tuple: Extracted state, action, rating, and score.
-    """
     action, seq, rating = seqt
 
     with torch.no_grad():
@@ -188,19 +166,6 @@ def process_seq(seqt, model_D_sasrec, device):
     return state, action, rating, score
 
 def extract_states_actions_val(data, model_D_sasrec, n, data_description, device):
-    """
-    Extracts validation states, actions, and related information.
-
-    Args:
-        data (pd.DataFrame): Input data containing user-item interactions.
-        model_D_sasrec (object): Model for generating state representations.
-        n (int): Window size for state sequences.
-        data_description (dict): Description of the dataset.
-        device (torch.device): Device to perform computations on.
-
-    Returns:
-        tuple: Extracted states, actions, ratings, scores, and sequences.
-    """
     states = []
     actions = []
     scores = []
